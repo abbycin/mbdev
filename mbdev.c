@@ -7,6 +7,7 @@
 
 #include "mbdev.h"
 #include "linux/blk_types.h"
+#include "linux/blkdev.h"
 
 static int mbdev_open(struct gendisk *disk, blk_mode_t mode)
 {
@@ -73,7 +74,7 @@ static blk_status_t mbdev_queue_rq(struct blk_mq_hw_ctx *hctx,
 	loff_t pos = blk_rq_pos(rq) << SECTOR_SHIFT;
 	loff_t cap = bdev->info.capacity; // already multiple SECTOR
 	enum req_op op = req_op(rq);
-        blk_status_t rc = BLK_STS_OK;
+	blk_status_t rc = BLK_STS_OK;
 
 	switch (op) {
 	case REQ_OP_READ:
@@ -88,6 +89,7 @@ static blk_status_t mbdev_queue_rq(struct blk_mq_hw_ctx *hctx,
 
 	blk_mq_start_request(rq);
 
+	u64 nbytes = 0;
 	rq_for_each_segment(vec, rq, iter)
 	{
 		u64 len = vec.bv_len;
@@ -95,18 +97,23 @@ static blk_status_t mbdev_queue_rq(struct blk_mq_hw_ctx *hctx,
 
 		if (pos + len > cap) {
 			// len = cap - pos;
-                        rc = BLK_STS_IOERR;
-                        break;
-                }
+			rc = BLK_STS_IOERR;
+			break;
+		}
 
 		if (op == REQ_OP_WRITE)
 			memcpy(bdev->data + pos, buf, len);
 		else if (op == REQ_OP_READ)
 			memcpy(buf, bdev->data + pos, len);
 		pos += len;
+		nbytes += len;
 	}
 
 	blk_mq_end_request(rq, rc);
+	debug("nbytes %llu last %d op %s",
+	      nbytes,
+	      data->last,
+	      op == REQ_OP_WRITE ? "write" : "read");
 	return rc;
 }
 
@@ -147,7 +154,7 @@ int bdev_add(struct bdev_ctrl *ctrl, struct ctrl_add_cmd *cmd)
 	bdev->tag_set.nr_hw_queues = cmd->nr_queue % num_online_cpus();
 	bdev->tag_set.queue_depth = cmd->qdepth;
 	bdev->tag_set.numa_node = NUMA_NO_NODE;
-	bdev->tag_set.flags = BLK_MQ_F_SHOULD_MERGE; // | BLK_MQ_F_STACKING;
+	bdev->tag_set.flags = BLK_MQ_F_SHOULD_MERGE | BLK_MQ_F_STACKING;
 	bdev->tag_set.cmd_size = 0;
 	bdev->tag_set.driver_data = bdev;
 
@@ -163,11 +170,11 @@ int bdev_add(struct bdev_ctrl *ctrl, struct ctrl_add_cmd *cmd)
 		goto err2;
 	}
 
-	// NOTE: the comment in `struct gendisk` says, the following three field
-	// shoudl not be set by new drivers
-	// bdev->disk->major = ctrl->bdev_major;
-	// bdev->disk->first_minor = minor;
-	// bdev->disk->minors = minor;
+	// NOTE: comment in `struct gendisk` says, the following three fields
+	// should not be set by new drivers
+	bdev->disk->major = ctrl->bdev_major;
+	bdev->disk->first_minor = minor + 1;
+	bdev->disk->minors = minor + 1;
 
 	bdev->disk->flags |= GENHD_FL_NO_PART; // only one parttion
 	bdev->disk->fops = &bdev_ops;
@@ -176,16 +183,13 @@ int bdev_add(struct bdev_ctrl *ctrl, struct ctrl_add_cmd *cmd)
 		 sizeof(bdev->disk->disk_name),
 		 "%s",
 		 name);
+	// NOTE: size must be power of SECTOR_SIZE (512)
 	set_capacity(bdev->disk, bdev->info.capacity / SECTOR_SIZE);
 
-	// custom block size
-	blk_queue_physical_block_size(bdev->disk->queue, BDEV_BLOCK_SZ);
-	blk_queue_logical_block_size(bdev->disk->queue, BDEV_BLOCK_SZ);
-	blk_queue_io_min(bdev->disk->queue, BDEV_BLOCK_SZ);
-	blk_queue_io_opt(bdev->disk->queue, BDEV_BLOCK_SZ);
+	blk_queue_physical_block_size(bdev->disk->queue, SECTOR_SIZE);
+	blk_queue_logical_block_size(bdev->disk->queue, SECTOR_SIZE);
 
-	blk_queue_max_hw_sectors(bdev->disk->queue,
-				 BDEV_BLOCK_SZ / SECTOR_SIZE);
+	blk_queue_max_hw_sectors(bdev->disk->queue, BLK_DEF_MAX_SECTORS);
 	blk_queue_flag_set(QUEUE_FLAG_NOMERGES, bdev->disk->queue);
 
 	rc = add_disk(bdev->disk);
@@ -250,19 +254,24 @@ EXPORT_SYMBOL_GPL(bdev_destroy);
 
 int bdev_del(struct bdev_ctrl *ctrl, struct ctrl_del_cmd *cmd)
 {
-	struct list_head *pos, *n;
+	struct list_head *pos;
 	struct my_bdev *bdev;
 	bool find = false;
 
-	list_for_each_safe(pos, n, &ctrl->bdev_head)
+	list_for_each(pos, &ctrl->bdev_head)
 	{
 		bdev = list_entry(pos, struct my_bdev, link);
 		if (bdev->info.minor == cmd->minor) {
-			list_del(pos);
 			find = true;
 			break;
 		}
 	}
+	if (__atomic_load_n(&bdev->info.refcnt, __ATOMIC_SEQ_CST)) {
+		debug("%s is in use", bdev->info.name);
+		return -EBUSY;
+	}
+
+	list_del(pos);
 
 	if (!find) {
 		debug("invalid cmd minor %u", cmd->minor);

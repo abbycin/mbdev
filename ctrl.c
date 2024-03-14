@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <string.h>
 #include <sys/ioctl.h>
 
 #define ctrl_file "/dev/mbdev_ctrl"
@@ -36,7 +38,7 @@ static void handle_add(int fd, size_t bytes, unsigned nq, unsigned qd)
 
 	int rc = ioctl(fd, BDEV_CTRL_ADD, &cmd);
 	if (rc != 0)
-		debug("add fail rc %d", rc);
+		debug("add fail rc %d error %s", rc, strerror(errno));
 	else
 		debug("add dev with capacity %zu nr_queue %u queue_depth %u",
 		      bytes,
@@ -64,14 +66,14 @@ static void handle_list(int fd)
 	}
 	int rc = ioctl(fd, BDEV_CTRL_LIST, cmd);
 	if (rc != 0) {
-		debug("list fail rc %d", rc);
+		debug("list fail rc %d error %s", rc, strerror(errno));
 		goto err;
 	}
 	int n = (cmd->size - sizeof(cmd->size)) / sizeof(*info);
 	qsort(cmd->bdevs, n, sizeof(*info), _cmp);
 	for (int i = 0; i < n; ++i) {
 		info = &cmd->bdevs[i];
-		printf("%-12s total %zu refcnt %d\n",
+		printf("%-12s capacity %zu refcnt %d\n",
 		       info->name,
 		       info->capacity,
 		       info->refcnt);
@@ -90,7 +92,7 @@ static void handle_del(int fd, unsigned minor)
 	struct ctrl_del_cmd cmd = { .minor = minor };
 	int rc = ioctl(fd, BDEV_CTRL_DEL, &cmd);
 	if (rc != 0)
-		debug("del %u fail rc %d", minor, rc);
+		debug("del %u fail rc %d error %s", minor, rc, strerror(errno));
 }
 
 int main(int argc, char *argv[])

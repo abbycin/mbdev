@@ -24,7 +24,6 @@
 #include <linux/math.h>
 #include <linux/vmalloc.h>
 
-#define BDEV_BLOCK_SZ 4096U
 #define BDEV_NAME "mbdev"
 
 #define debug(fmt, ...)                                                        \
