@@ -266,18 +266,18 @@ int bdev_del(struct bdev_ctrl *ctrl, struct ctrl_del_cmd *cmd)
 			break;
 		}
 	}
-	if (__atomic_load_n(&bdev->info.refcnt, __ATOMIC_SEQ_CST)) {
-		debug("%s is in use", bdev->info.name);
-		return -EBUSY;
-	}
-
-	list_del(pos);
 
 	if (!find) {
 		debug("invalid cmd minor %u", cmd->minor);
 		return -EINVAL;
 	}
 
+	if (__atomic_load_n(&bdev->info.refcnt, __ATOMIC_SEQ_CST)) {
+		debug("%s is in use", bdev->info.name);
+		return -EBUSY;
+	}
+
+	list_del(pos);
 	bitmap_clear(ctrl->minor_map, bdev->info.minor, 1);
 	bdev_destroy(bdev);
 	return 0;
