@@ -17,8 +17,8 @@ driver:
 install:
 	cp -f $(BINARY).ko $(TARGET_PATH)
 	depmod -a
-test: ctrl.c
-	$(CC) -o $@ $^ -DUAPI
+test: ctrl.o
+	$(CC) -o $@ $^
 clean:
 	rm -f *.ko *.order *.symvers
 	rm -f *.o *.mod*

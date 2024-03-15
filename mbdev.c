@@ -141,11 +141,11 @@ int bdev_add(struct bdev_ctrl *ctrl, struct ctrl_add_cmd *cmd)
 	memcpy(bdev->info.name, name, sizeof(name));
 	bdev->data = vmalloc(bdev->info.capacity);
 	if (!bdev->data) {
-		debug("can't alloc %zu for %s", bdev->info.capacity, name);
+		debug("can't alloc %llu for %s", bdev->info.capacity, name);
 		goto err;
 	}
 
-	debug("add_cmd => cap %zu nr_queue %u qdepth %u",
+	debug("add_cmd => cap %llu nr_queue %u qdepth %u",
 	      cmd->capacity,
 	      cmd->nr_queue,
 	      cmd->qdepth);

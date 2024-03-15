@@ -9,35 +9,31 @@
 #define CTRL_1710314777_H_
 
 #include <linux/ioctl.h>
-#ifndef UAPI
 #include <linux/types.h>
-#else
-#include <stddef.h>
-#endif
 
 #define BDEV_NAME_SZ 20
 #define BDEV_MAX_SZ 256U
 
 struct my_bdev_info {
-        size_t capacity;
-        int refcnt;
-        unsigned minor;
-        char name[BDEV_NAME_SZ];
+        __u64 capacity;
+        __s32 refcnt;
+        __u32 minor;
+        __s8 name[BDEV_NAME_SZ];
 };
 
 struct ctrl_add_cmd {
-        unsigned qdepth;
-        unsigned nr_queue;
-        size_t capacity;
+        __u32 qdepth;
+        __u32 nr_queue;
+        __u64 capacity;
 };
 
 struct ctrl_list_cmd {
-        size_t size; // the size including `size`
+        __u64 size; // the size including `size`
         struct my_bdev_info bdevs[];
 };
 
 struct ctrl_del_cmd {
-        unsigned minor;
+        __u32 minor;
 };
 
 #define MAGIC ('a' | 'b' | 'b' | 'y' | 'b' | 'd' | 'v')
