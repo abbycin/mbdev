@@ -6,8 +6,6 @@
  */
 
 #include "mbdev.h"
-#include "linux/blk_types.h"
-#include "linux/blkdev.h"
 
 static int mbdev_open(struct gendisk *disk, blk_mode_t mode)
 {

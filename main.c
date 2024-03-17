@@ -186,7 +186,7 @@ static __exit void ctrl_exit(void)
 	cdev_del(&g_ctrl.dev);
 	unregister_blkdev(g_ctrl.bdev_major, BDEV_NAME);
 	unregister_chrdev_region(g_ctrl.cdevno, 1);
-	debug("goodby mbdev");
+	debug("goodbye mbdev");
 }
 
 module_init(ctrl_init);
