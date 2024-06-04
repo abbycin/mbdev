@@ -34,21 +34,21 @@
 
 struct my_bdev {
 	struct list_head link;
-        struct my_bdev_info info;
+	struct my_bdev_info info;
 	struct gendisk *disk;
-        struct blk_mq_tag_set tag_set;
-        char *data; // memory for IO
+	struct blk_mq_tag_set tag_set;
+	char *data; // memory for IO
 };
 
 struct bdev_ctrl {
-        dev_t cdevno;
-        unsigned int bdev_major;
-        unsigned long *minor_map;
-        struct cdev dev;
-        struct mutex mtx;
-        struct class *class;
-        struct device *device;
-        struct list_head bdev_head;
+	dev_t cdevno;
+	unsigned int bdev_major;
+	unsigned long *minor_map;
+	struct cdev dev;
+	struct mutex mtx;
+	struct class *class;
+	struct device *device;
+	struct list_head bdev_head;
 };
 
 int bdev_add(struct bdev_ctrl *ctrl, struct ctrl_add_cmd *cmd);

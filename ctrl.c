@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (grp == OPT_INVALID) {
-		debug("%s [-a [-s size] [-q nr_queue] [-d qdpeth]] [-l] [-d "
+		debug("%s [-a [-s size] [-q nr_queue] [-d qdpeth]] [-l] [-r "
 		      "minor]",
 		      argv[0]);
 		return 1;

@@ -103,10 +103,17 @@ ctrl_write(struct file *fp, const char __user *buf, size_t size, loff_t *off)
 	return -ENOENT;
 }
 
+static int ctrl_uring_cmd(struct io_uring_cmd *cmd, unsigned int flag)
+{
+	dump_stack();
+	return -ENOSYS;
+}
+
 static struct file_operations g_ctrl_ops = {
 	.open = ctrl_open,
 	.release = ctrl_release,
 	.unlocked_ioctl = ctrl_ioctl,
+	.uring_cmd = ctrl_uring_cmd,
 	.read = ctrl_read,
 	.write = ctrl_write,
 	.owner = THIS_MODULE,

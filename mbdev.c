@@ -22,6 +22,26 @@ static void mbdev_release(struct gendisk *disk)
 	__atomic_fetch_sub(&bdev->info.refcnt, 1, __ATOMIC_SEQ_CST);
 }
 
+static int mbdev_ioctl(struct block_device *dev,
+		       blk_mode_t mode,
+		       unsigned cmd,
+		       unsigned long arg)
+{
+	struct my_bdev *bdev = dev->bd_disk->private_data;
+	void __user *ptr = (void *)arg;
+
+	if (cmd == BLKGETSIZE64) {
+		int rc = copy_to_user(
+			ptr, &bdev->info.capacity, sizeof(bdev->info.capacity));
+		if (rc)
+			debug("copy capacity to user fail rc %d", rc);
+		else
+			debug("capacity send to user");
+		return 0;
+	}
+	return -EINVAL;
+}
+
 #ifndef REQUESTS_BASED
 static void mbdev_submit_bio(struct bio *bio)
 {
@@ -57,6 +77,7 @@ static struct block_device_operations bdev_ops = {
 	.owner = THIS_MODULE,
 	.open = mbdev_open,
 	.release = mbdev_release,
+	.ioctl = mbdev_ioctl,
 #ifndef REQUESTS_BASED
 	.submit_bio = mbdev_submit_bio,
 #endif
@@ -149,6 +170,7 @@ int bdev_add(struct bdev_ctrl *ctrl, struct ctrl_add_cmd *cmd)
 	      cmd->qdepth);
 	// init tag set and disk
 	bdev->tag_set.ops = &mq_ops;
+	// NOTE: tag_set->tags will be nr_hw_queues elements
 	bdev->tag_set.nr_hw_queues = cmd->nr_queue % num_online_cpus();
 	bdev->tag_set.queue_depth = cmd->qdepth;
 	bdev->tag_set.numa_node = NUMA_NO_NODE;
@@ -162,7 +184,7 @@ int bdev_add(struct bdev_ctrl *ctrl, struct ctrl_add_cmd *cmd)
 		goto err1;
 	}
 
-	bdev->disk = blk_mq_alloc_disk(&bdev->tag_set, bdev);
+	bdev->disk = blk_mq_alloc_disk(&bdev->tag_set, NULL, bdev);
 	if (!bdev->disk) {
 		debug("blk_mq_alloc_disk fail");
 		goto err2;
@@ -187,7 +209,7 @@ int bdev_add(struct bdev_ctrl *ctrl, struct ctrl_add_cmd *cmd)
 	blk_queue_physical_block_size(bdev->disk->queue, SECTOR_SIZE);
 	blk_queue_logical_block_size(bdev->disk->queue, SECTOR_SIZE);
 
-	blk_queue_max_hw_sectors(bdev->disk->queue, BLK_DEF_MAX_SECTORS);
+	blk_queue_max_hw_sectors(bdev->disk->queue, BLK_SAFE_MAX_SECTORS);
 	blk_queue_flag_set(QUEUE_FLAG_NOMERGES, bdev->disk->queue);
 
 	rc = add_disk(bdev->disk);
